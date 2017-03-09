@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<head>
+<style>/* CSS*/
+
+body {font: 12px Arial;}
+
+.rectangle {
+	fill: steelblue;
+}
+.rectangle:hover {
+	fill: paleturquoise;
+}
+.axis {
+  font: 10px sans-serif;
+}
+
+.xaxis path{
+  display: none;
+}
+
+/*set up d3 tooltip*/
+.d3-tip {
+  line-height: 1;
+  font-weight: bold;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.4);
+  color: #fff;
+  border-radius: 2px;
+}
+
+.axis path,
+.axis line {
+  fill: none;
+  stroke: #000;
+  shape-rendering: crispEdges;
+}
+
+</style>
+</head>
+
+<div id="layout">
+	<h1>Washington Micro-Climates</h1>
+	<h3>An interactive weather map by Amanda Cummings</h3>
+	</div>
+
+
+<div id="drop" align=left></div>
+
+<script src="http://d3js.org/d3.v3.min.js"></script>
+<script src="http://labratrevenge.com/d3-tip/javascripts/d3.tip.v0.6.3.js"></script>
+<script>
+
+// set dimensions of canvas 
+var margin = {top: 20, right: 20, bottom: 70, left: 40},
+    width = 1000 - margin.left - margin.right,
+    height = 300 - margin.top - margin.bottom;
+
+// variable for tooltip 
+var tip = d3.tip()
+  .attr('class', 'd3-tip')
+  .offset([-10, 0])
+  .html(function(d) {
+    return "<strong>Station:</strong> <span style='color:paleturquoise'>" + d.town + "</span>" 
+    + '<br />' + "Elevation: <span style='color:paleturquoise'>" + d.Elevation + "ft" + "</span>" 
+    + '<br />' + "Avg Temp: <span style='color:paleturquoise'>" + d["Average Temp (F)"] +"F" +"</span>" + 
+     '<br />' + "Annual Snow: <span style='color:paleturquoise'>" + d["Annual Snow"] +"ft" +"</span>"  +
+   '<br />' + "Annual Rain: <span style='color:paleturquoise'>" + d["Annual Precipitation"] + "</span>" 
+  })
+
+// add chart to svg canvas
+var chart1= d3.select("body").append("svg")
+    .attr("width", width + margin.left + margin.right)
+    .attr("height", height + margin.top + margin.bottom)
+    .append("g")
+    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+// append tooltip to chart 
+chart1.call(tip);
+
+// load climate data
+d3.csv("climate.csv", function(error, data){
+	
+  // define all columns as elements 
+	var elements = Object.keys(data[0])
+		.filter(function(d){
+			return((d !="Town"));
+		});
+  
+  // setup elements for selection filter 
+	var selection = elements[0];
+
+  // define y as selection 
+	var y1 = d3.scale.linear()
+			.domain([0, d3.max(data, function(d){
+				return +d[selection];
+			})])
+			.range([height, 0]);
+
+  // define x as town 
+	var x1 = d3.scale.ordinal()
+			.domain(data.map(function(d){ return d.Town;}))
+			.rangeBands([0, width]);
+
+  // setup x and y axis 
+	var xAxis1 = d3.svg.axis()
+		.scale(x1)
+	    .orient("bottom");
+
+	var yAxis1 = d3.svg.axis()
+		.scale(y1)
+	    .orient("left");
+
+  //plot chart 1
+	chart1.append("g")
+      .attr("class", "x axis")
+    	.attr("transform", "translate(0," + height + ")")
+    	.call(xAxis1)
+    	.selectAll("text")
+    	.style("font-size", "8px")
+      .style("text-anchor", "end")
+      .attr("dx", "-.8em")
+      .attr("dy", "-.55em")
+      .attr("transform", "rotate(-90)" );
+
+
+ 	chart1.append("g")
+    	.attr("class", "y axis")
+    	.call(yAxis1);
+
+	chart1.selectAll("rectangle")
+		.data(data)
+		.enter()
+		.append("rect")
+		.attr("class","rectangle")
+		.attr("width", width/data.length)
+		.attr("height", function(d){
+      return height - y1(+d[selection]);
+      })
+		.attr("x", function(d, i){
+			return (width / data.length) * i ;
+		  })
+		.attr("y", function(d){
+			return y1(+d[selection]);
+		  })
+    .on("mouseover", tip.show) //add tool tip on mouseover 
+    .on("mouseout", tip.hide)
+		.append("title")
+    ;
+
+  // design y axis 
+  chart1.append("g")
+      .attr("class", "y axis")
+      .call(yAxis1)
+      .append("text")
+      .attr("transform", "rotate(-90)")
+      .attr("y", 6)
+      .attr("dy", ".71em")
+      .style("text-anchor", "end")
+      .text("Value");
+
+  // set up title 
+  chart1.append("g")
+      .append("text")
+      .attr("x", width/2)
+      .attr("y", -15)
+      .attr("dy", ".71em")
+      .style("text-anchor", "middle")
+      .text("Explore Climate by WA Weather Stations")
+      .attr("font-family", "sans-serif")
+      .attr("font-size", "14px");
+
+  // design x axis 
+   chart1.append("g")
+      .attr("class", "x axis")
+      .attr("transform", "translate(0," + height + ")")
+      .call(xAxis1)
+      .append("text")
+      .attr("class", "label")
+      .attr("x", width)
+      .attr("y", 20)
+      .style("text-anchor", "end")
+      .text("Weather Station")
+      ;
+
+  // variable for selector drop down 
+	var selector = d3.select("#drop")
+    	.append("select")
+    	.attr("id","dropdown")
+    	.on("change", function(d){
+        	selection = document.getElementById("dropdown");
+          // set domain for y selection
+        	y1.domain([0, d3.max(data, function(d){
+            return +d[selection.value];})]);
+          // scale for y selection 
+        	yAxis1.scale(y1);
+          // transition element 
+        	d3.selectAll(".rectangle")
+           		.transition()
+	            .attr("height", function(d){
+                return height - y1(+d[selection.value]);
+                })
+				.attr("x", function(d, i){
+					return (width / data.length) * i ;
+          })
+				.attr("y", function(d){
+					return y1(+d[selection.value]);
+				  })
+        .ease("linear")
+        .select("title")
+        .text(function(d){
+          return d.Town + " : " + d[selection.value];
+           });
+      
+        d3.selectAll("g.y.axis")
+           	.transition()
+           	.call(yAxis1);
+
+         });
+
+    // selection 
+    selector.selectAll("option")
+      .data(elements)
+      .enter().append("option")
+      .attr("value", function(d){
+        return d;
+      })
+      .text(function(d){
+        return d;
+      })
+});
+
+
+</script>
+
+</body>
