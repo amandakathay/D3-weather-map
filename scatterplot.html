@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<head>
+<style> /* CSS*/
+
+body {font: 12px Arial;}
+
+/* match css elements to chart 1*/
+.rectangle {
+  fill: steelblue;
+}
+
+.axis {
+  font: 10px sans-serif;
+}
+
+.xaxis path{
+  display: none;
+}
+
+.axis path,
+.axis line {
+  fill: none;
+  stroke: #000;
+  shape-rendering: crispEdges;
+}
+
+</style>
+</head>
+
+<div id="layout">
+  <h1>Impact of Elevation on Temperature in Washington State</h1>
+  <h3>Interactive Weather Map: Part 2</h3>
+  <p>Click and drag on the scatterplot to zoom in and explore data clusters. To prevent label overlapping, double-click to zoom out before selecting a new group of points.</p>
+  </br>
+  </div>
+
+<script src="http://d3js.org/d3.v4.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.8.3/underscore-min.js"></script>
+<script>
+
+  //load data   
+  d3.csv("climate.csv", function(data) {
+      data.forEach(function(d) {
+        d.town = d.town; // need variables for town, elevation, temp 
+        d.x = +d.Elevation;
+        d.y = +d["Average Temp (F)"]});
+
+        var margin = { top: 20, right: 20, bottom: 30, left: 30 };
+        width = 900 - margin.left - margin.right,
+        height = 480 - margin.top - margin.bottom;
+
+        // define x
+        var x = d3.scaleLinear()          
+              .range([0, width])
+              .nice();
+
+        // define y       
+        var y = d3.scaleLinear()
+            .range([height, 0]);
+
+        // set up axes    
+        var xAxis = d3.axisBottom(x).ticks(12),
+            yAxis = d3.axisLeft(y).ticks(12 * height / width);
+
+        // define brush     
+        var brush = d3.brush().extent([[0, 0], [width, height]]).on("end", brushended),
+            idleTimeout,
+            idleDelay = 350;
+        
+        // create svg 
+        var svg = d3.select("body").append("svg")
+                    .attr("width", width + margin.left + margin.right)
+                    .attr("height", height + margin.top + margin.bottom)
+                    .append("g")
+                    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+        // clipped path is used with brushing to remove elements that aren't selected             
+        var clip = svg.append("defs").append("svg:clipPath")
+            .attr("id", "clip")
+            .append("svg:rect")
+            .attr("width", width )
+            .attr("height", height )
+            .attr("x", 0) 
+            .attr("y", 0); 
+
+        // set limits on zooming within range of x and y domains      
+        var xExtent = d3.extent(data, function (d) { return d.x; });
+        var yExtent = d3.extent(data, function (d) { return d.y; });
+        x.domain(d3.extent(data, function (d) { return d.x; })).nice();
+        y.domain(d3.extent(data, function (d) { return d.y; })).nice();
+
+        // create scatterplot 
+        var scatter = svg.append("g")
+             .attr("id", "scatterplot")
+             .attr("clip-path", "url(#clip)"); // restrict by clip path 
+        
+        // add circles     
+        var circle = scatter.selectAll(".dot")
+            .data(data)
+            .enter().append("circle")
+            .attr("class", "dot")
+            .attr("r", 4)
+            .attr("cx", function (d) { return x(d.x); })
+            .attr("cy", function (d) { return y(d.y); })
+            .attr("opacity", .6) // opacity to make points more legible 
+            .style("fill", "steelblue");
+
+
+        // set up x axis
+        svg.append("g")
+           .attr("class", "x axis")
+           .attr('id', "axis--x")
+           .attr("transform", "translate(0," + height + ")")
+           .call(xAxis);
+
+        svg.append("text")
+         .style("text-anchor", "end")
+            .attr("x", width)
+            .attr("y", height - 8)
+         .text("Elevation");
+
+        // set up y axis
+        svg.append("g")
+            .attr("class", "y axis")
+            .attr('id', "axis--y")
+            .call(yAxis);
+
+        // y axis label 
+        svg.append("text")
+            .attr("transform", "rotate(0)")
+            .attr("y", -15)
+            .attr("dy", "1em")
+            .style("text-anchor", "left")
+            .text("Average Temperature (F)");
+
+        // call brush     
+        scatter.append("g")
+            .attr("class", "brush")
+            .call(brush);
+        
+        // define node for text labels 
+        var node = svg.selectAll("g")
+            .data(data)
+            .enter()
+            .append("g");
+
+        // function for zoom out 
+        function brushended() {
+
+            var s = d3.event.selection;
+
+            // logic for zooming back out 
+            if (!s) {
+                if (!idleTimeout) return idleTimeout = setTimeout(idled, idleDelay);
+                x.domain(d3.extent(data, function (d) { return d.x; })).nice();
+                y.domain(d3.extent(data, function (d) { return d.y; })).nice();
+                node.selectAll("text").remove(); //remove text on zoom out 
+
+            } else {
+                // logic for zooming in to selection 
+                x.domain([s[0][0], s[1][0]].map(x.invert, x));
+                y.domain([s[1][1], s[0][1]].map(y.invert, y));
+                scatter.select(".brush").call(brush.move, null);
+                
+                // add text labels for towns on zoom 
+                node.append("text")
+                    .attr("x", function(d) { return x(d.x); })
+                    .attr("y", function(d) { return y(d.y); })
+                    .text(function(d) {return d.town})
+                    .style("font-size", "8px")
+                    .style("opacity", .7)
+                    }
+            zoom();
+        }
+
+        function idled() {
+            idleTimeout = null;
+        }
+
+        // define function for zoom 
+        function zoom() {var t = scatter.transition().duration(750);
+            svg.select("#axis--x").transition(t).call(xAxis);
+            svg.select("#axis--y").transition(t).call(yAxis);
+            scatter.selectAll("circle").transition(t)
+            .attr("cx", function (d) { return x(d.x); })
+            .attr("cy", function (d) { return y(d.y); })
+
+        }
+    });
+
+    </script>
+
+
+</body>
